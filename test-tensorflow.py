@@ -191,6 +191,7 @@ def train():
 
     # plot train accuracy
     plt.plot(history.history['accuracy'], label='accuracy')
+    plt.plot(history.history['val_accuracy'], label = 'val_accuracy')
     plt.xlabel('Epoch')
     plt.ylabel('Accuracy')
     plt.ylim([0.3, 1.0])
