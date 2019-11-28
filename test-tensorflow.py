@@ -21,13 +21,8 @@ import statistics
 import pickle
 from sklearn.utils import shuffle
 
-import os
-os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"   # see issue #152
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 # pgm images reader
-
-
 def read_pgm(filename, byteorder='>'):
     """Return image data from a raw PGM file as numpy array.
 
@@ -90,31 +85,74 @@ def set_seed(seed):
     np.random.seed(seed)
     os.environ['PYTHONHASHSEED'] = str(seed)
 
+
 def model1(input_shape, class_names):
     return keras.Sequential([
         Conv2D(filters=32, kernel_size=(5, 5),
-               input_shape=input_shape, activation='tanh', kernel_initializer='glorot_uniform'),
+               input_shape=input_shape, activation='relu', kernel_initializer='glorot_uniform'),
         MaxPooling2D((2, 2)),
-        Conv2D(filters=64, kernel_size=(3, 3), activation='relu', kernel_initializer='glorot_uniform'),
+        Conv2D(filters=64, kernel_size=(3, 3), activation='tanh',
+               kernel_initializer='glorot_uniform'),
         MaxPooling2D((2, 2)),
-        Conv2D(filters=128, kernel_size=(3, 3), activation='relu', kernel_initializer='glorot_uniform'),
+        Conv2D(filters=128, kernel_size=(3, 3), activation='tanh',
+               kernel_initializer='glorot_uniform'),
+        # MaxPooling2D((2, 2)),
+        # Conv2D(filters=256, kernel_size=(3, 3), activation='relu',
+        #        kernel_initializer='glorot_uniform'),
         MaxPooling2D((2, 2)),
         Flatten(),
         Dense(128, activation='tanh', kernel_initializer='glorot_uniform'),
-        Dense(len(class_names), activation='softmax', kernel_initializer='glorot_uniform')
+        Dense(256, activation='tanh', kernel_initializer='glorot_uniform'),
+        Dense(512, activation='tanh', kernel_initializer='glorot_uniform'),
+        Dense(64, activation='tanh', kernel_initializer='glorot_uniform'),
+        Dense(len(class_names), activation='softmax',
+              kernel_initializer='glorot_uniform')
     ])
+
+def model3(input_shape, class_names):
+    return keras.Sequential([
+        Conv2D(filters=64, kernel_size=(3, 3), padding='same',
+               input_shape=input_shape, activation='relu', kernel_initializer='glorot_uniform'),
+        MaxPooling2D((2, 2)),
+        Conv2D(filters=128, kernel_size=(3, 3), activation='relu', padding='same',
+               kernel_initializer='glorot_uniform'),
+        MaxPooling2D((2, 2)),
+        Conv2D(filters=256, kernel_size=(3, 3), activation='relu', padding='same',
+               kernel_initializer='glorot_uniform'),
+        Conv2D(filters=256, kernel_size=(3, 3), activation='relu', padding='same',
+               kernel_initializer='glorot_uniform'),
+        MaxPooling2D((2, 2)),
+        Conv2D(filters=512, kernel_size=(3, 3), activation='relu', padding='same',
+               kernel_initializer='glorot_uniform'),
+        Conv2D(filters=512, kernel_size=(3, 3), activation='relu',
+               kernel_initializer='glorot_uniform'),
+        MaxPooling2D((2, 2)),
+        Flatten(),
+        Dense(4096, activation='relu', kernel_initializer='glorot_uniform'),
+        Dense(4096, activation='relu', kernel_initializer='glorot_uniform'),
+        Dense(1000, activation='relu', kernel_initializer='glorot_uniform'),
+        Dense(len(class_names), activation='softmax',
+              kernel_initializer='glorot_uniform')
+    ])
+
 
 def model2(input_shape, class_names):
     return keras.Sequential([
         Conv2D(filters=1, kernel_size=(3, 3),
-                            input_shape=input_shape, activation='tanh', kernel_initializer='glorot_uniform'),
-        Conv2D(filters=64, kernel_size=tuple(np.subtract(input_shape[:-1], (3, 3))), activation='tanh', kernel_initializer='glorot_uniform'),
-        Reshape((64, 2, 2)),
-        Dense(64, input_shape=(2, 2), kernel_initializer='glorot_uniform'),
+                            input_shape=input_shape, activation='tanh', kernel_initializer='random_normal', bias_initializer='random_normal'),
+        Conv2D(filters=64, kernel_size=tuple(np.subtract(
+            input_shape[:-1], (3, 3))), activation='tanh', kernel_initializer='random_normal', bias_initializer='random_normal'),
         Flatten(),
-        Dense(len(class_names), activation='softmax', kernel_initializer='glorot_uniform'
-        )
+        Dense(64 * 4, kernel_initializer='random_normal', activation='tanh', bias_initializer='random_normal'),
+        Dense(len(class_names), activation='softmax',
+              kernel_initializer='random_normal', bias_initializer='random_normal')
     ])
+
+def normalize(arr: np.ndarray):
+    mean = np.mean(arr, dtype=np.float64)
+    std = np.std(arr, dtype=np.float64)
+    arr = arr[:][:] * mean / std
+
 
 def train(train_images, train_labels, test_images, test_labels, class_names, learning_rate, save_name, epochs):
     input_shape = train_images.shape[1:]
@@ -126,7 +164,8 @@ def train(train_images, train_labels, test_images, test_labels, class_names, lea
     model.compile(optimizer=keras.optimizers.Adam(learning_rate=learning_rate),
                   loss='sparse_categorical_crossentropy',
                   metrics=['accuracy'])
-    
+
+
     checkpoint_path = "training_1/cp-{epoch:04d}.ckpt"
     checkpoint_dir = os.path.dirname(checkpoint_path)
     load_path = "training_0_74/cp.ckpt"
@@ -141,30 +180,67 @@ def train(train_images, train_labels, test_images, test_labels, class_names, lea
     model.save_weights("{}.h5".format(save_name))
     class_weight = {0: 0.5, 1: 0.5}
 
-    BATCH_SIZE = 64
+    BATCH_SIZE = 100
     SHUFFLE_BUFFER_SIZE = 100
 
     train_images, train_labels = shuffle(train_images, train_labels)
-    
-    history = model.fit(train_images, train_labels, epochs=epochs, callbacks=[
-                        cp_callback], validation_data=(test_images, test_labels), class_weight=class_weight)
+
+    train_dataset = tf.data.Dataset.from_tensor_slices((train_images, train_labels))
+    test_dataset = tf.data.Dataset.from_tensor_slices((test_images, test_labels))
+
+    train_dataset = train_dataset.shuffle(SHUFFLE_BUFFER_SIZE).batch(BATCH_SIZE)
+    test_dataset = test_dataset.batch(BATCH_SIZE)
+
+
+    history = model.fit(train_dataset, epochs=epochs, callbacks=[
+                        cp_callback], validation_data=test_dataset, class_weight=class_weight)
+
+    W = model.get_weights()
+
     model.save("{}-{}.h5".format(save_name, "trained"))
-    
+
+    predictions = model.predict_classes(test_images)
+    cm = tf.math.confusion_matrix(test_labels, predictions)
+
+    # FalsePositive = []
+    # for i in range(2):
+    #     FalsePositive.append(sum(cm[:,i]) - cm[i,i])
+    # FalseNegative = []
+    # for i in range(2):
+    #     FalseNegative.append(sum(cm[i,:]) - cm[i,i])
+    print(predictions)
+    print(cm)
+    # print(FalseNegative)
+    # print(FalsePositive)
+
     return model, history
 
+
 def findb():
-    (train_images, train_labels), (test_images, test_labels) = pickle.load(open("data/32x32/data_small.pkl", "rb"))
+    (train_images, train_labels), (test_images, test_labels) = pickle.load(
+        open("data/32x32/data_small.pkl", "rb"))
+    
+    # (train_images2, train_labels2), (test_images2, test_labels2) = pickle.load(
+    #     open("data/32x32/data_small_noise_10-10.pkl", "rb"))
 
     class_names = ['cover', 'stego']
 
-    # train_images = train_images / 255.0
-    # test_images = test_images / 255.0
+    train_images = train_images / 255.0
+    test_images = test_images / 255.0
+
+    normalize(train_images)
+    normalize(test_images)
 
     train_images = np.expand_dims(train_images, axis=3)
     test_images = np.expand_dims(test_images, axis=3)
 
+    # test_images2 = test_images2 / 255.0
+    # normalize(test_images2)
+    # test_images2 = np.expand_dims(test_images2, axis=3)
+
     # model, history = train(train_images, train_labels, test_images, test_labels, class_names, 0.001, "find/{}".format("init"), 1000)
-    model, history = train(train_images, train_labels, test_images, test_labels, class_names, 0.002, "find/{}".format("init"), 300)
+    model, history = train(train_images, train_labels, test_images,
+                           test_labels, class_names, 1e-4, "find/{}".format("init"), 20)
     model.save_weights("trained-1000.h5")
 
     # plot train accuracy
