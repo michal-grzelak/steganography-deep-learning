@@ -1,8 +1,8 @@
 # TensorFlow and tf.keras
 import tensorflow as tf
 from tensorflow import keras
-from tensorflow.python.keras.layers.core import Dense, Dropout, Flatten, Activation, Reshape
-from tensorflow.python.keras.layers.convolutional import Conv2D, MaxPooling2D, SeparableConv2D
+from tensorflow.python.keras.layers.core import Dense, Flatten
+from tensorflow.python.keras.layers.convolutional import Conv2D
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -30,7 +30,8 @@ class Network(object):
         self.model = keras.Sequential([
             Conv2D(filters=4, kernel_size=(3, 3),
                                 input_shape=(32, 32, 1), activation='tanh', kernel_initializer='glorot_uniform'),
-            Conv2D(filters=256, kernel_size=(29, 29), activation='tanh', kernel_initializer='glorot_uniform'),
+            Conv2D(filters=16, kernel_size=(12, 12), activation='tanh', kernel_initializer='glorot_uniform'),
+            Conv2D(filters=64, kernel_size=(4, 4), activation='tanh', kernel_initializer='glorot_uniform'),
             Flatten(),
             Dense(256 * 4, kernel_initializer='glorot_uniform', activation='tanh'),
             Dense(2, activation='softmax',
