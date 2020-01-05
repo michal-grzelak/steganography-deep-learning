@@ -15,11 +15,16 @@ def get_files_in_directory(dir, format='*', recursive=False):
 def load_image_asarray(path):
     return np.asarray(Image.open(path).convert('L').resize((32, 32), Image.LANCZOS))
 
-def train(selected: int):
+def load_data(selected: int):
     files = get_files_in_directory('train_data/', 'pkl')
     file_menu = Menu(files, lambda x: network.load_training_data(files[x - 1]), 'Choose train data:', has_back=True)
     file_menu.display()
     inp = file_menu.select()
+
+    return inp
+
+def train(selected: int):
+    inp = load_data(0)
     if inp == None:
         return
 
@@ -35,6 +40,10 @@ def train(selected: int):
     ], 'Save model?')
     yesno_menu.display()
     yesno_menu.select()
+    network.visualize_history()
+
+def visualize_history(selected: int):
+    network.visualize_history()
 
 def load_model(selected: int):
     models = get_files_in_directory('models/', 'h5')
@@ -69,11 +78,13 @@ def evaluate(selected: int):
 main_menu = Menu([
     'Train',
     'Evaluate',
+    'Show last training visualization',
     'Load saved model from file',
     'Exit'
 ], [
     train,
     evaluate,
+    visualize_history,
     load_model,
     lambda x: sys.exit()
 ])

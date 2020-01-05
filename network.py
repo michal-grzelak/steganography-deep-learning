@@ -25,9 +25,8 @@ def prepare_data(array):
 
     return np.expand_dims(array, axis=3)
 
-class Network(object):
-    def __init__(self):
-        self.model = keras.Sequential([
+def get_model():
+    return keras.Sequential([
             Conv2D(filters=4, kernel_size=(3, 3),
                                 input_shape=(32, 32, 1), activation='tanh', kernel_initializer='glorot_uniform'),
             Conv2D(filters=16, kernel_size=(12, 12), activation='tanh', kernel_initializer='glorot_uniform'),
@@ -38,9 +37,12 @@ class Network(object):
                 kernel_initializer='glorot_uniform')
         ])
 
-        self.model.compile(optimizer=keras.optimizers.SGD(learning_rate=3e-3),
-                  loss='sparse_categorical_crossentropy',
-                  metrics=['accuracy'])
+class Network(object):
+    def __init__(self):
+        self.history = None
+        self.model = get_model()
+
+        self.load_model('models/pre-trained.h5')
     
     def load_model(self, path):
         print('Started loading model: {}'.format(path))
@@ -66,7 +68,12 @@ class Network(object):
         self.model.summary()
     
     def train(self, epochs):
-        self.model.fit(self.train_images, self.train_labels, epochs=epochs, validation_data=(self.test_images, self.test_labels))
+        self.model = get_model()
+        self.model.compile(optimizer=keras.optimizers.SGD(learning_rate=3e-3),
+                  loss='sparse_categorical_crossentropy',
+                  metrics=['accuracy'])
+
+        self.history = self.model.fit(self.train_images, self.train_labels, epochs=epochs, validation_data=(self.test_images, self.test_labels))
     
     def save_model(self, filename):
         self.model.save_weights("models/{}.h5".format(filename))
@@ -87,3 +94,19 @@ class Network(object):
             plt.imshow(data.squeeze(3)[i], cmap='gray')
             plt.xlabel('{} ({}% sure)'.format(CLASS_NAMES[predictions[i]], str(probabilities[i][predictions[i]] * 100)[:4]))
         plt.show()
+    
+    def visualize_history(self):
+        if self.history != None:
+            predictions = self.model.predict_classes(self.test_images)
+            print('Displaying confusion matrix:')
+            print(tf.math.confusion_matrix(self.test_labels, predictions))
+
+            plt.plot(self.history.history['accuracy'], label='Training data')
+            plt.plot(self.history.history['val_accuracy'], label='Test data')
+            plt.xlabel('Epoch')
+            plt.ylabel('Accuracy')
+            plt.ylim([0.5, 1])
+            plt.legend(loc='lower right')
+            plt.show()
+        else:
+            print('No history found!')
